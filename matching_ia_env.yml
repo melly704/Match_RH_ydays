@@ -1,0 +1,13 @@
+name: matching_ia
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pandas
+  - scikit-learn
+  - pip
+  - pip:
+      - sentence-transformers
+      - fastapi
+      - uvicorn
