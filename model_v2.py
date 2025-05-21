@@ -5,7 +5,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
 profiles_df = pd.read_csv("Data/profile_model.csv").fillna("")
-offers_df = pd.read_csv("Data/offres_model.csv").fillna("")
+offers_df = pd.read_csv("Data/offres_wassim.csv").fillna("")
 df_offres = offers_df.copy()
 df_offres['offre_id'] = df_offres.index  
 df_candidats = profiles_df.copy()
@@ -15,6 +15,7 @@ weights = {
     "Points_forts": 0.15,
     "Compétence": 0.15,
     "Contrat": 0.15,
+    
     "Experience_mois": 0.20,
     "Departement": 0.15
 }
