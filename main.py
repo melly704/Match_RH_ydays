@@ -12,13 +12,33 @@ client = MongoClient("mongodb://localhost:27017")
 db = client["matchrh"]
 collection = db["offres"]
 
+result = collection.delete_many({
+    "$or": [
+        {"Nom_poste": None},
+        {"Nom_poste": {"$exists": False}},
+        {"Nom_poste": ""},
+        {"Nom_poste": {"$regex": r"^\s*$"}}  
+    ]
+})
+last_offre = collection.find_one(
+    {"offre_id": {"$exists": True}},
+    sort=[("offre_id", -1)]
+)
+max_offre_id = int(last_offre["offre_id"]) if last_offre else 0
+next_offre_id = max_offre_id + 1
 # Lire le dernier document
 dernier_doc = collection.find_one(sort=[("_id", -1)])
 
 # Convertir en DataFrame
 posts_df2 = pd.DataFrame([dernier_doc])
-
-print(posts_df2)
+colonnes_attendues = [
+    "Contrat", "Departement", "Description", "Entreprise", "Experience",
+    "experience_mois", "groupe_metier", "Lieu", "missions", "Nom_poste",
+    "offre_id", "profil", "stack_technique"
+]
+for col in colonnes_attendues:
+    if col not in posts_df2.columns:
+        posts_df2[col] = None
 
 
 
@@ -127,7 +147,7 @@ extraits_robustes = posts_df2['Description'].fillna('').apply(lambda x: extraire
 for col in extraits_robustes.columns:
     extraits_robustes[col] = extraits_robustes[col].str.replace(r'\s+', ' ', regex=True).str.strip()
 
-posts_df = posts_df2.drop(columns=['missions', 'profil', 'stack_technique'], errors='ignore')  # supprimer anciens
+posts_df = posts_df2.drop(columns=['missions', 'profil', 'stack_technique'], errors='ignore') 
 posts_df = pd.concat([posts_df, extraits_robustes], axis=1)
 def nettoyer_bloc(bloc, patterns):
     if pd.isna(bloc):
@@ -178,6 +198,7 @@ df_clean_offres = df_cleaned_combined_posts[~condition_to_drop].reset_index(drop
 
 
 
+
 #extraire departement 
 
 def extraire_departement(lieu):
@@ -192,15 +213,9 @@ def extraire_departement(lieu):
     return None
 df_clean_offres['Departement'] = df_clean_offres['Lieu'].apply(extraire_departement)
 
-df_clean_offres.to_csv('Data/offres_wassim.csv')
-
-
-
-
 profiles_df = pd.read_csv("Data/profile_model.csv").fillna("")
-offers_df = pd.read_csv("Data/offres_wassim.csv").fillna("")
+offers_df = df_clean_offres
 df_offres = offers_df.copy()
-df_offres['offre_id'] = df_offres.index  
 df_candidats = profiles_df.copy()
 df_candidats['candidat_id'] = df_candidats.index  
 weights = {
@@ -241,10 +256,14 @@ for i in range(similarity_total.shape[0]):
     for j in range(similarity_total.shape[1]):
         all_matches.append((i, j, similarity_total[i, j]))
 
+
 df_scores = pd.DataFrame(all_matches, columns=["candidat_id", "offre_id", "score"])
+df_scores['offre_id'] = df_offres['offre_id']
+print(df_scores['offre_id'])
+
 df_scores = df_scores.merge(df_candidats, left_on='candidat_id', right_on='candidat_id', how='left')
 df_scores = df_scores.merge(df_offres, on='offre_id', how='left', suffixes=('_candidat', '_offre'))
-
+print(df_scores)
 candidats_meilleures_offres = (
     df_scores
     .sort_values(by=['candidat_id', 'score'], ascending=[True, False])
@@ -253,7 +272,7 @@ candidats_meilleures_offres = (
 )
 candidats_meilleures_offres = candidats_meilleures_offres[
     ['candidat_id', 'Profil', 'Points_forts', 'Compétence', 'Expérience', 'Nom_poste','Contrat_offre', 'Description',
-       'Experience', 'Entreprise', 'score']
+       'Experience', 'score']
 ]
 offres_meilleurs_candidats = (
     df_scores
@@ -262,5 +281,11 @@ offres_meilleurs_candidats = (
     .head(5)
 )
 
+offres_meilleurs_candidats = offres_meilleurs_candidats[
+    ['offre_id', 'Nom_poste', 'Contrat_offre', 'Description', 'Experience', 'Entreprise','candidat_id', 'Profil',
+       'Compétence', 'Expérience', 'score']
+]
+
+print(offres_meilleurs_candidats)
 
 
